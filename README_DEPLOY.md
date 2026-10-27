@@ -1,25 +1,21 @@
-# FinSight V5.2 — SEC Data Integrity Upgrade
+# FinSight V6 · SEC Workspace + Light Theme
 
-## What changed
-- Rejects SEC comparative facts whose actual `end` date belongs to an older year, even when SEC `fy` matches the selected year.
-- Requires full-year (330–400 day) 10-K/10-K/A flows, and uses point-in-time facts for balance sheet accounts.
-- Determines a dominant annual reporting date and requires all current-year facts to match that date.
-- Validates adjacent prior-year period ends before computing growth or average-balance ROE/ROA.
-- Displays actual fact period, filing date, XBRL tag and SEC source. Withholds missing or noncomparable values.
-- Retains the existing PWA and calculators.
+## Deploy / upgrade
 
-## Update an existing Netlify deployment (GitHub connected)
-1. Open your `finsight-app` GitHub repository.
-2. Replace `index.html` and `netlify/functions/sec-financials.js` with the corresponding V5.2 files. Keep the directory structure unchanged.
-3. Commit both changes to `main`.
-4. Netlify will automatically deploy the updated site. Check **Deploys** until it says **Published**.
-5. Your existing `SEC_USER_AGENT` environment variable remains in Netlify; do not enter it in GitHub.
-6. Test `https://YOUR-SITE.netlify.app/.netlify/functions/sec-financials?company=DAL&year=2025`.
-   The JSON must include `"version":"5.2"` and `"periods":{"current":"2025-12-31"` for a calendar-year issuer like Delta.
-7. Open your app and click **Auto-fetch SEC & diagnose**. Hard-refresh with Ctrl+Shift+R if an older PWA is cached.
+Replace `index.html` and `netlify/functions/sec-financials.js` in your existing GitHub repository; keep all other PWA assets. Commit to `main` and wait for Netlify to publish automatically. The existing `SEC_USER_AGENT` environment variable stays configured.
 
-## Important limitations
-- This release has local JavaScript syntax and synthetic regression tests, not live SEC/Netlify end-to-end tests. Confirm real values against the SEC filings before relying on a diagnosis.
-- Some issuers have non-calendar fiscal years; the matching algorithm permits a fiscal-year end in the named year or the following year. Complex fiscal calendars and 53-week periods may require issuer-specific verification.
-- Company Facts standard tags may omit or combine company-specific items. Missing facts remain missing.
-- Screening flags do not establish manipulation, fraud, or investment suitability.
+## Test
+
+1. Open your deployed Netlify URL, hard-refresh (Ctrl+Shift+R), select Overview.
+2. Enter `DAL`, `Delta`, or `Delta Air Lines`, choose FY2025 and 5 annual 10-K periods, click **Load SEC financials**.
+3. Verify the actual fiscal period end dates above each year and that missing values are shown as em dashes.
+4. Open each module; click **View SEC evidence** to inspect company data. In ROE & DuPont or Earnings Quality, use the optional **Populate calculator** action.
+5. Open Guided Diagnosis (last tab), choose a pathway, and click **Auto-fetch SEC & diagnose**.
+
+## Scope and limitations
+
+The API uses SEC EDGAR Company Facts `us-gaap` USD XBRL facts, limited to validated annual 10-K periods. The 5-year view is five fiscal-year summaries, **not a full rendering of five 10-K documents**. Operating classifications (NOPAT/NOA), custom issuer XBRL tags, and nonstandard cash flow subtotals may be unavailable. Historical SEC facts may be amended. Calculators remain editable teaching tools; no implied automatic data substitution except explicit Populate actions. No investment advice or fraud determination.
+
+## Troubleshooting
+
+If you see `The Netlify SEC function is an older version`, confirm `netlify/functions/sec-financials.js` is updated and Netlify deployment has completed. For SEC 403/429 errors, check SEC access policies and request limits. Opening `index.html` locally supports only offline reference/calculator modules.

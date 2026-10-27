@@ -41,13 +41,17 @@ function summarize(facts,year){const periods={current:dominantPeriod(facts,year)
  for(const [k,f] of Object.entries(current))if(f&&f.periodEnd!==periods.current)warnings.push('Period mismatch for '+k+'; withheld.');
  return {periods,periodValidated:!!periods.current,current,prior,prior2,results,warnings,notes:['V5.2 validates each fact actual period end against the selected fiscal-year reporting period; SEC fy alone is insufficient.','Flow values require a 330–400-day annual duration; balance-sheet values are point-in-time.','Each value includes its original XBRL tag, accession, filing date, and actual fact period.','Annual 10-K/10-K/A company facts only; custom tags, operating classifications, and some company-specific facts are not covered.','Growth is withheld when the prior-year denominator is zero or negative or the reporting periods are not comparable.','ROE and ROA use average beginning/ending balance sheet values; these are not Operating ROA.','Screening flags are not evidence of manipulation.']};}
 exports.handler=async event=>{try{if(event.httpMethod!=='GET')return{statusCode:405,body:'Method not allowed'};
- const q=event.queryStringParameters||{},query=String(q.company||'').trim().toLowerCase(),year=Number(q.year);
+ const q=event.queryStringParameters||{},query=String(q.company||'').trim().toLowerCase(),year=Number(q.year),years=Math.max(1,Math.min(5,Number(q.years)||1));
  if(!query||!Number.isInteger(year)||year<2009||year>new Date().getFullYear())return{statusCode:400,headers:{'Content-Type':'application/json'},body:JSON.stringify({error:'Enter a company/ticker and a valid fiscal year.'})};
  const tickers=await secJson('https://www.sec.gov/files/company_tickers.json'),ticker=ALIASES[query]||query.toUpperCase(),entries=Object.values(tickers);
- const hit=entries.find(x=>x.ticker?.toUpperCase()===ticker)||entries.find(x=>x.title?.toLowerCase()===query);
+ const exact=entries.find(x=>x.ticker?.toUpperCase()===ticker)||entries.find(x=>x.title?.toLowerCase()===query);
+ const matches=entries.filter(x=>x.title?.toLowerCase().startsWith(query)||x.title?.toLowerCase().includes(query));
+ const hit=exact||(matches.length===1?matches[0]:null);
+ if(!hit&&matches.length>1)return{statusCode:409,headers:{'Content-Type':'application/json'},body:JSON.stringify({error:'Ambiguous company name. Choose a ticker or full company name.',matches:matches.slice(0,8).map(x=>({ticker:x.ticker,name:x.title}))})};
  if(!hit)return{statusCode:404,headers:{'Content-Type':'application/json'},body:JSON.stringify({error:'Company not found. Try its U.S.-listed ticker.'})};
  const cik=String(hit.cik_str).padStart(10,'0'),facts=await secJson(`https://data.sec.gov/api/xbrl/companyfacts/CIK${cik}.json`),summary=summarize(facts,year);
- return{statusCode:200,headers:{'Content-Type':'application/json','Cache-Control':'public, max-age=600'},body:JSON.stringify({version:'5.2',company:hit.title,ticker:hit.ticker,cik,year,secUrl:`https://www.sec.gov/edgar/browse/?CIK=${cik}`,retrievedAt:new Date().toISOString(),...summary})};
+ const history=Array.from({length:years},(_,i)=>year-years+1+i).map(y=>({year:y,...summarize(facts,y)}));
+ return{statusCode:200,headers:{'Content-Type':'application/json','Cache-Control':'public, max-age=600'},body:JSON.stringify({version:'6.0',company:hit.title,ticker:hit.ticker,cik,year,history,secUrl:`https://www.sec.gov/edgar/browse/?CIK=${cik}`,retrievedAt:new Date().toISOString(),...summary})};
  }catch(e){return{statusCode:503,headers:{'Content-Type':'application/json'},body:JSON.stringify({error:e.message||'SEC service unavailable'})}}};
 // Exposed only for local regression tests; no network calls are made by these helpers.
 exports._test={annualEligible,dominantPeriod,selectFact,summarize};
