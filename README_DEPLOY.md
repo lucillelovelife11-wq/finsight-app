@@ -1,32 +1,25 @@
-# FinSight V5 — SEC-connected Financial Diagnostic PWA
+# FinSight V5.2 — SEC Data Integrity Upgrade
 
-## What's new
-- Auto-fetch SEC 10-K XBRL company facts for a U.S.-listed ticker or company name, then automatically populate a guided financial diagnostic.
-- Source transparency: original XBRL tags, accession number, filed date, and period are returned by the server.
-- Missing or incomparable values are not invented. The app requests manual evidence for unavailable items.
-- Existing manual diagnostics, formulas, valuation, and three-statement explorer are preserved.
+## What changed
+- Rejects SEC comparative facts whose actual `end` date belongs to an older year, even when SEC `fy` matches the selected year.
+- Requires full-year (330–400 day) 10-K/10-K/A flows, and uses point-in-time facts for balance sheet accounts.
+- Determines a dominant annual reporting date and requires all current-year facts to match that date.
+- Validates adjacent prior-year period ends before computing growth or average-balance ROE/ROA.
+- Displays actual fact period, filing date, XBRL tag and SEC source. Withholds missing or noncomparable values.
+- Retains the existing PWA and calculators.
 
-## Important: deploy through Netlify Git integration (not Netlify Drop)
-The V5 SEC proxy is a Netlify Function. Dragging a static folder to Netlify Drop may publish the HTML but NOT deploy the function. Recommended:
-1. Upload the **contents** of this folder to a new GitHub repository (keep `netlify/functions/sec-financials.js` and `netlify.toml`).
-2. Netlify > Add new project > Import an existing project > GitHub > choose the repository.
-3. Publish directory: `.`; build command: leave empty. Deploy.
-4. Netlify > Project configuration > Environment variables > Add `SEC_USER_AGENT` = `FinSight Research your-real-contact-email@example.com`. Replace with a real contact address; SEC requires an identifying User-Agent.
-5. Trigger a fresh deploy after setting the variable. Open the HTTPS website; choose Guided Diagnosis; enter DAL and FY2025; click Auto-fetch SEC & diagnose.
-6. Check the Network tab for `/.netlify/functions/sec-financials` if there is an error. If SEC denies access from Netlify cloud infrastructure, automatic retrieval will be unavailable until a permitted backend is configured. Do not describe it as guaranteed live data.
+## Update an existing Netlify deployment (GitHub connected)
+1. Open your `finsight-app` GitHub repository.
+2. Replace `index.html` and `netlify/functions/sec-financials.js` with the corresponding V5.2 files. Keep the directory structure unchanged.
+3. Commit both changes to `main`.
+4. Netlify will automatically deploy the updated site. Check **Deploys** until it says **Published**.
+5. Your existing `SEC_USER_AGENT` environment variable remains in Netlify; do not enter it in GitHub.
+6. Test `https://YOUR-SITE.netlify.app/.netlify/functions/sec-financials?company=DAL&year=2025`.
+   The JSON must include `"version":"5.2"` and `"periods":{"current":"2025-12-31"` for a calendar-year issuer like Delta.
+7. Open your app and click **Auto-fetch SEC & diagnose**. Hard-refresh with Ctrl+Shift+R if an older PWA is cached.
 
-## Technical scope
-- Annual 10-K facts only, selected by filing FY/FP and annual duration, with standard US-GAAP XBRL tags.
-- Income growth from a negative prior-year net income is withheld rather than using a misleading growth percentage.
-- ROE uses current and prior year-end equity average. OpROA and net borrowing cost require classifications that are not automatically available from standard XBRL.
-- SEC Company Facts is free, but the API does not support browser CORS; server-side fetch is necessary.
-- Some firms use custom XBRL tags, so coverage varies.
-- This is a financial-screening educational app, not a fraud detector.
-
-## Local preview
-Open `index.html` to use manual features. The auto-fetch button needs a deployed Netlify Function. For local function testing, install Netlify CLI and run `netlify dev` with a valid SEC_USER_AGENT environment variable.
-
-## Verify the live backend
-On your deployed site, open `https://YOUR-SITE.netlify.app/.netlify/functions/sec-financials?company=DAL&year=2025`. A JSON response containing either `company`/`results` or an explicit `error` means the function is deployed. An HTML page or 404 means it is not.
-
-**Do not** upload only `index.html` or use static drag-and-drop deployment. The ZIP provided here has `index.html` and `netlify.toml` at its root for direct repository upload.
+## Important limitations
+- This release has local JavaScript syntax and synthetic regression tests, not live SEC/Netlify end-to-end tests. Confirm real values against the SEC filings before relying on a diagnosis.
+- Some issuers have non-calendar fiscal years; the matching algorithm permits a fiscal-year end in the named year or the following year. Complex fiscal calendars and 53-week periods may require issuer-specific verification.
+- Company Facts standard tags may omit or combine company-specific items. Missing facts remain missing.
+- Screening flags do not establish manipulation, fraud, or investment suitability.
