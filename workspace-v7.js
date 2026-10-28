@@ -19,7 +19,7 @@ function fmt(n){return E.finite(n)?n.toLocaleString('en-US',{maximumFractionDigi
 function latest(){return secWorkspace?.history?.at(-1);}
 function baseData(){
  const h=latest(),data={},sources={};for(const [k] of fields){data[k]=null;sources[k]='Manual evidence or assumption required';}
- for(const k of ['revenue','ni','cfo','assets','equity','ar','ca','cl','capex','shares','interest']){const f=h?.current?.[k];if(E.finite(f?.value)){data[k]=f.value/1e6;sources[k]=`${f.tag} · ${f.periodEnd} · filed ${f.filed||'unknown'} · ${f.accession||'no accession'}`;}}
+ for(const k of ['revenue','ni','cfo','assets','equity','ar','ca','cl','capex','shares','interest','interestIncome']){const f=h?.current?.[k];if(E.finite(f?.value)){data[k]=f.value/1e6;sources[k]=`${f.tag} · ${f.periodEnd} · filed ${f.filed||'unknown'} · ${f.accession||'no accession'}`;}}
  const adj=h?.periods?.current&&h?.periods?.prior&&(Date.parse(h.periods.current)-Date.parse(h.periods.prior))/86400000;
  if(adj>=330&&adj<=400)for(const [key,tag] of [['beginAssets','assets'],['beginEquity','equity'],['beginAr','ar']]){const f=h.prior?.[tag];if(E.finite(f?.value)){data[key]=f.value/1e6;sources[key]=`${f.tag} · opening ${f.periodEnd} · ${f.accession||''}`;}}
  const raw=k=>h?.current?.[k]?.value;
@@ -129,7 +129,7 @@ async function loadPeers(id){const s=state(id);if(!secWorkspace||!latest()?.peri
 function download(id){const s=state(id),payload={version:'7.0',exportedAt:new Date().toISOString(),company:secWorkspace?.ticker||null,fiscalYear:secWorkspace?.year||null,module:id,...s};const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='FinSight_'+(secWorkspace?.ticker||'manual')+'_'+id+'_'+(s.mode||'baseline')+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
 function syncCalculators(){
  const b=baseData().data;
- const map={ni:b.ni,sales:b.revenue,ab:b.beginAssets,ae:b.assets,eb:b.beginEquity,ee:b.equity,qni:b.ni,qocf:b.cfo,qrev:b.revenue,qcapex:b.capex,qarb:b.beginAr,qare:b.ar,oni:b.ni,oa:b.assets,orev:b.revenue,ose:b.equity,iex:b.interest,irev:null,tax:b.tax,ol:null,noaasset:null,debt:null,fcff:null,growth:null,wacc:null,terminal:null,netdebt:null,shares:b.shares};
+ const map={ni:b.ni,sales:b.revenue,ab:b.beginAssets,ae:b.assets,eb:b.beginEquity,ee:b.equity,qni:b.ni,qocf:b.cfo,qrev:b.revenue,qcapex:b.capex,qarb:b.beginAr,qare:b.ar,oni:b.ni,oa:b.assets,orev:b.revenue,ose:b.equity,iex:b.interest,irev:b.interestIncome,tax:b.tax,ol:null,noaasset:null,debt:null,fcff:null,growth:null,wacc:null,terminal:null,netdebt:null,shares:b.shares};
  for(const [key,value] of Object.entries(map)){const el=document.getElementById(key);if(el){el.value=value??'';el.dataset.origin=E.finite(value)?'SEC':'missing';el.dataset.syncedValue=E.finite(value)?String(value):'';el.placeholder=E.finite(value)?'':'Manual evidence or assumption required';}}
  // Recalculate complete modules and name each missing input in incomplete ones.
  for(const [name] of configs)window[name]();
@@ -200,6 +200,7 @@ const originalDiagRender=diagRender;diagRender=function(){originalDiagRender();c
  const context=path==='earnings'?{good:['Cash growth and revenue growth may support earnings if timing and noncash items reconcile.'],risks:['Income growth ahead of cash or receivables growth ahead of sales can require follow-up; neither establishes manipulation.'],confirm:['Inspect receivable aging, allowances, revenue policies and cash-flow adjustments.'],next:['Compare the same signals over several fiscal years in Overview and test a timing hypothesis in the scenario panel.']}:path==='roe'?{good:['Margin or asset-turnover improvements may explain stronger shareholder returns.'],risks:['A smaller equity denominator or higher leverage can raise ROE without better operations.'],confirm:['Reconcile DuPont drivers, average equity, net borrowing cost and operating classifications.'],next:['Use ROE & DuPont and Operating ROA, then test a historical measurement hypothesis.']}:{good:['Liquid assets and recurring cash generation may support short-term obligations.'],risks:['A strong current ratio may rely on slow inventory, doubtful receivables or a seasonal year-end.'],confirm:['Review current-asset composition, debt maturities and cash commitments.'],next:['Check multiple annual periods and test alternative CFO or working-capital assumptions.']};
  const total=diagFlows[path].length;document.getElementById('diagAssessment').innerHTML+=branches(`Evidence supplied: ${diagState.step} of ${total}. Assessments remain provisional.`,context.good,context.risks,context.confirm,context.next);
 };
+globalThis.seedReviewedScenarioInputs=function(id,values,rationale){const st=state(id);for(const [k,value]of Object.entries(values))if(E.finite(value)){if(!E.finite(st.reported[k]))st.manualBaseline[k]=value;st.edit[k]=value;}st.rationale=rationale;render(id);};
 mount();
 for(const [name] of configs)window[name]();
 diagRender();
