@@ -584,7 +584,7 @@ const api={empty,apply,rows};if(typeof module!=='undefined'&&module.exports)modu
 'use strict';const T=FinSightTransactions,E=FinSightScenario,esc=diagEsc;
 let delta=T.empty(),log=[];const original={apply:applyTx,render:renderTx,reset:resetTx,export:exportTx};
 function baseline(){const h=secWorkspace?.history?.at(-1),c=h?.current||{},v=k=>E.finite(c[k]?.value)?c[k].value/1e6:null;
-return {revenue:v('revenue'),ni:v('ni'),cfo:v('cfo'),cash:v('cash'),ar:v('ar'),assets:v('assets'),equity:v('equity'),ppe:v('ppe'),prepaid:null,ap:null,deferred:null,debt:E.finite(v('debtCurrent'))&&E.finite(v('debtNoncurrent'))?v('debtCurrent')+v('debtNoncurrent'):null,cfi:v('cfi'),cff:v('cff')};}
+return {revenue:v('revenue'),ni:v('ni'),cfo:v('cfo'),cash:v('cash'),ar:v('ar'),assets:v('assets'),equity:v('equity'),ppe:v('ppe'),prepaid:v('prepaid'),ap:v('accruedWages'),deferred:v('deferred'),debt:E.finite(v('debtCurrent'))&&E.finite(v('debtNoncurrent'))?v('debtCurrent')+v('debtNoncurrent'):null,cfi:v('cfi'),cff:v('cff')};}
 const fmt=v=>E.finite(v)?v.toLocaleString('en-US',{maximumFractionDigits:4}):'Unavailable';
 const identity=()=>secWorkspace.company+' ('+secWorkspace.ticker+') · FY'+secWorkspace.year;
 function table(rows){return '<p class="small">USD millions · reported baseline versus hypothetical changes</p><div class="scroll-table"><table class="scenario-table"><thead><tr><th>Item</th><th>Reported</th><th>Transaction Δ</th><th>After simulation</th></tr></thead><tbody>'+rows.map(r=>`<tr><th>${esc(r.label)}</th><td>${fmt(r.baseline)}</td><td class="${r.change?'positive':''}">${r.change>0?'+':''}${fmt(r.change)}${r.change===0?' (no effect)':''}</td><td>${fmt(r.adjusted)}</td></tr>`).join('')+'</tbody></table></div>';}
@@ -745,7 +745,7 @@ for(const id of Object.keys(operatingLabels))$(id).addEventListener('input',opca
 for(const id of Object.keys(dcfLabels))$(id).addEventListener('input',dcf);
 // Initial output is also rendered for empty inputs: a section must never silently stay blank.
 opcalc();dcf();status();
-if('serviceWorker' in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('./sw-v84.js').catch(()=>{$('v8BackendNotice').textContent+=' Offline caching could not initialize; the online page can still operate.';});
+if('serviceWorker' in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('./sw-v85.js').catch(()=>{$('v8BackendNotice').textContent+=' Offline caching could not initialize; the online page can still operate.';});
 })();
 
 </script><script data-v8-module="reviewed-bridges.js">
@@ -804,7 +804,7 @@ function render(){const h=current(),b=FinSightBridges.bridges(h,policy),identity
  const seedKey=secWorkspace?JSON.stringify([secWorkspace.cik,secWorkspace.year,secWorkspace.retrievedAt,policy]):'';
  if(seedKey&&seedKey!==lastSeed&&globalThis.seedReviewedScenarioInputs){lastSeed=seedKey;globalThis.seedReviewedScenarioInputs('operating',{opLiabilities:b.opLiabilities,nonOpAssets:b.nonOpAssets,netDebt:b.netDebt,interestIncome:b.inputs.interestIncome,tax:b.inputs.tax},'Provisional automatically populated classification policy: '+JSON.stringify(policy));globalThis.seedReviewedScenarioInputs('valuation',{fcff:b.fcff,netDebt:b.netDebt},'Provisional historical bridges, not reported values.');}
  opcalc();dcf();
- const status=$('v8BuildStatus');status.textContent='FinSight V8.4 · page ready · SEC backend '+(secWorkspace?.version||'not loaded');$('v8BackendNotice').textContent=secWorkspace?.version&&secWorkspace.version!=='8.4'?'Deploy the V8.4 function too. The currently loaded backend is '+secWorkspace.version+'.':'';
+ const status=$('v8BuildStatus');status.textContent='FinSight V8.5 · page ready · SEC backend '+(secWorkspace?.version||'not loaded');$('v8BackendNotice').textContent=secWorkspace?.version&&secWorkspace.version!=='8.5'?'Deploy the V8.5 function too. The currently loaded backend is '+secWorkspace.version+'.':'';
 }
 const sync=updateContextBars;updateContextBars=function(){sync();lastSeed='';for(const id of ['ol','noaasset','fcff','netdebt','tax'])delete $(id).dataset.userEdited;policy={investments:false,leases:false,excludeInterestIncome:true};$('netInterest').value='';render();opcalc();quality();};
 for(const id of ['ol','noaasset','fcff','netdebt','tax'])$(id).addEventListener('input',()=>{$(id).dataset.userEdited='true';$(id).classList.remove('provisional-input');});
@@ -898,6 +898,6 @@ updateContextBars=function(){sync();fill();};
 globalThis.FinSightAutoFill={plan,fill};
 // Editing a highlighted value turns it into a user value.
 for(const id of [...TARGETS.operating,...TARGETS.valuation])$(id)?.addEventListener('input',()=>{$(id).classList.remove('provisional-input');$(id).dataset.origin='user';});
-const status=$('v8BuildStatus');if(status)status.textContent='FinSight V8.4 · page ready · SEC backend '+(secWorkspace?.version||'not loaded');
+const status=$('v8BuildStatus');if(status)status.textContent='FinSight V8.5 · page ready · SEC backend '+(secWorkspace?.version||'not loaded');
 })();
 </script></body></html>

@@ -2,7 +2,7 @@
 'use strict';const T=FinSightTransactions,E=FinSightScenario,esc=diagEsc;
 let delta=T.empty(),log=[];const original={apply:applyTx,render:renderTx,reset:resetTx,export:exportTx};
 function baseline(){const h=secWorkspace?.history?.at(-1),c=h?.current||{},v=k=>E.finite(c[k]?.value)?c[k].value/1e6:null;
-return {revenue:v('revenue'),ni:v('ni'),cfo:v('cfo'),cash:v('cash'),ar:v('ar'),assets:v('assets'),equity:v('equity'),ppe:v('ppe'),prepaid:null,ap:null,deferred:null,debt:E.finite(v('debtCurrent'))&&E.finite(v('debtNoncurrent'))?v('debtCurrent')+v('debtNoncurrent'):null,cfi:v('cfi'),cff:v('cff')};}
+return {revenue:v('revenue'),ni:v('ni'),cfo:v('cfo'),cash:v('cash'),ar:v('ar'),assets:v('assets'),equity:v('equity'),ppe:v('ppe'),prepaid:v('prepaid'),ap:v('accruedWages'),deferred:v('deferred'),debt:E.finite(v('debtCurrent'))&&E.finite(v('debtNoncurrent'))?v('debtCurrent')+v('debtNoncurrent'):null,cfi:v('cfi'),cff:v('cff')};}
 const fmt=v=>E.finite(v)?v.toLocaleString('en-US',{maximumFractionDigits:4}):'Unavailable';
 const identity=()=>secWorkspace.company+' ('+secWorkspace.ticker+') · FY'+secWorkspace.year;
 function table(rows){return '<p class="small">USD millions · reported baseline versus hypothetical changes</p><div class="scroll-table"><table class="scenario-table"><thead><tr><th>Item</th><th>Reported</th><th>Transaction Δ</th><th>After simulation</th></tr></thead><tbody>'+rows.map(r=>`<tr><th>${esc(r.label)}</th><td>${fmt(r.baseline)}</td><td class="${r.change?'positive':''}">${r.change>0?'+':''}${fmt(r.change)}${r.change===0?' (no effect)':''}</td><td>${fmt(r.adjusted)}</td></tr>`).join('')+'</tbody></table></div>';}

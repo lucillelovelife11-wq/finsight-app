@@ -84,5 +84,5 @@ updateContextBars=function(){sync();fill();};
 globalThis.FinSightAutoFill={plan,fill};
 // Editing a highlighted value turns it into a user value.
 for(const id of [...TARGETS.operating,...TARGETS.valuation])$(id)?.addEventListener('input',()=>{$(id).classList.remove('provisional-input');$(id).dataset.origin='user';});
-const status=$('v8BuildStatus');if(status)status.textContent='FinSight V8.4 · page ready · SEC backend '+(secWorkspace?.version||'not loaded');
+const status=$('v8BuildStatus');if(status)status.textContent='FinSight V8.5 · page ready · SEC backend '+(secWorkspace?.version||'not loaded');
 })();
