@@ -1,5 +1,5 @@
 (function(){
-'use strict';const $=id=>document.getElementById(id),E=FinSightScenario,esc=diagEsc,fmt=n=>E.finite(n)?n.toLocaleString('en-US',{maximumFractionDigits:2}):'Unavailable';let policy={investments:false,leases:false,excludeInterestIncome:true};
+'use strict';const $=id=>document.getElementById(id),E=FinSightScenario,esc=diagEsc,fmt=n=>E.finite(n)?n.toLocaleString('en-US',{maximumFractionDigits:2}):'Unavailable';let policy={investments:false,leases:false,excludeInterestIncome:true},lastSeed='';
 function current(){return secWorkspace?.history?.at(-1)||null;}
 function subject(){return secWorkspace?secWorkspace.company+' ('+secWorkspace.ticker+') · FY'+secWorkspace.year:'Load an issuer in Overview';}
 const fields={ni:'Net income',cfo:'CFO',capex:'CapEx',interest:'Interest expense',interestIncome:'Interest income',netInterest:'Reported net interest expense',ar:'Receivables, net',cash:'Cash',securities:'Short-term investments',debtCurrent:'Current debt',debtNoncurrent:'Noncurrent debt',taxExpense:'Income tax expense'};
@@ -21,8 +21,18 @@ function render(){const h=current(),b=FinSightBridges.bridges(h,policy),identity
  bind('use-debt-bridge',()=>{set('netdebt',b.netDebt,'reviewed-derived');seed({netDebt:b.netDebt},'Reviewed debt/non-operating asset scope; '+JSON.stringify(policy));dcf();$('valuation-review-status').textContent='Reviewed net debt populated.';});
  bind('use-demo-assumptions',()=>{for(const [id,value]of [['growth',5],['wacc',10],['terminal',2]])set(id,value,'illustrative-assumption');seed({growth:5,wacc:10,terminal:2},'Illustrative assumptions, not issuer forecasts.');dcf();$('valuation-review-status').textContent='Illustrative growth 5%, WACC 10%, terminal growth 2% applied. Edit to reflect your own assumptions.';});
  if(E.finite(b.debt))set('debt',b.debt,'reported-debt-scope');
- const status=$('v8BuildStatus');status.textContent='FinSight V8.2 · page ready · SEC backend '+(secWorkspace?.version||'not loaded');$('v8BackendNotice').textContent=secWorkspace?.version&&secWorkspace.version!=='8.2'?'Deploy the V8.2 function too. The currently loaded backend is '+secWorkspace.version+'.':'';
+ const auto=(id,value)=>{if(E.finite(value)&&(!$ (id).dataset.userEdited||$(id).value==='')){set(id,value,'provisional-derived');$(id).classList.add('provisional-input');}};
+ auto('ol',b.opLiabilities);auto('noaasset',b.nonOpAssets);auto('netdebt',b.netDebt);auto('fcff',b.fcff);
+ if(E.finite(b.inputs.tax)&&!$('tax').dataset.userEdited)set('tax',b.inputs.tax,'derived-tax-proxy');
+ $('automatic-operating-status').textContent=identity+' — Available classifications are prefilled as provisional policy-derived values, not reported subtotals. Cash-only scope excludes unknown investments; edit the values or confirm the policy above.';
+ $('automatic-valuation-status').textContent=identity+' — Available FCFF and net-debt bridges are prefilled as provisional estimates. Enter forecast growth, WACC and terminal growth below, or explicitly choose the illustrative starter here.';
+ bind('inline-forecast-starter',()=>{for(const [id,value]of [['growth',5],['wacc',10],['terminal',2]])set(id,value,'illustrative-assumption');if(globalThis.seedReviewedScenarioInputs)globalThis.seedReviewedScenarioInputs('valuation',{growth:5,wacc:10,terminal:2},'Explicit illustrative starter, not an issuer forecast.');dcf();$('automatic-valuation-status').textContent=identity+' — Illustrative assumptions applied: growth 5%, WACC 10%, terminal growth 2%. These are editable teaching assumptions.';});
+ const seedKey=secWorkspace?JSON.stringify([secWorkspace.cik,secWorkspace.year,secWorkspace.retrievedAt,policy]):'';
+ if(seedKey&&seedKey!==lastSeed&&globalThis.seedReviewedScenarioInputs){lastSeed=seedKey;globalThis.seedReviewedScenarioInputs('operating',{opLiabilities:b.opLiabilities,nonOpAssets:b.nonOpAssets,netDebt:b.netDebt,interestIncome:b.inputs.interestIncome,tax:b.inputs.tax},'Provisional automatically populated classification policy: '+JSON.stringify(policy));globalThis.seedReviewedScenarioInputs('valuation',{fcff:b.fcff,netDebt:b.netDebt},'Provisional historical bridges, not reported values.');}
+ opcalc();dcf();
+ const status=$('v8BuildStatus');status.textContent='FinSight V8.4 · page ready · SEC backend '+(secWorkspace?.version||'not loaded');$('v8BackendNotice').textContent=secWorkspace?.version&&secWorkspace.version!=='8.4'?'Deploy the V8.4 function too. The currently loaded backend is '+secWorkspace.version+'.':'';
 }
-const sync=updateContextBars;updateContextBars=function(){sync();policy={investments:false,leases:false,excludeInterestIncome:true};$('netInterest').value='';render();opcalc();quality();};
+const sync=updateContextBars;updateContextBars=function(){sync();lastSeed='';for(const id of ['ol','noaasset','fcff','netdebt','tax'])delete $(id).dataset.userEdited;policy={investments:false,leases:false,excludeInterestIncome:true};$('netInterest').value='';render();opcalc();quality();};
+for(const id of ['ol','noaasset','fcff','netdebt','tax'])$(id).addEventListener('input',()=>{$(id).dataset.userEdited='true';$(id).classList.remove('provisional-input');});
 render();
 })();

@@ -1,0 +1,15 @@
+const test=require('node:test'),assert=require('node:assert/strict'),harness=require('./v8-dom.cjs');
+function fixture(values){const current={},prior={};for(const [k,v]of Object.entries(values))current[k]={value:v*1e6,tag:'RegressionFixture',periodEnd:'2025-12-31'};prior.ar={value:3224e6,tag:'RegressionFixture',periodEnd:'2024-12-31'};const h={year:2025,periods:{current:'2025-12-31',prior:'2024-12-31'},current,prior,results:{},notes:[]};return {...h,company:'DELTA AIR LINES, INC.',ticker:'DAL',cik:'27904',version:'8.4',year:2025,retrievedAt:'t'+Math.random(),history:[h]};}
+const DAL={ni:5005,cfo:8342,revenue:63364,assets:81317,equity:20853,cash:4310,capex:4499,netInterest:679,taxExpense:1180,shares:654,ar:2850,reportedDebtCurrent:1605,reportedDebtNoncurrent:12507};
+async function load(values){const p=harness(fixture(values));assert.deepEqual(p.errors,[]);p.get('globalCompany').value='DAL';p.get('globalYear').value='2025';await p.get('workspaceLoad').click();return p;}
+const ALL=['ol','noaasset','debt','tax','fcff','growth','wacc','terminal','netdebt','shares'];
+function noRed(p){for(const id of ALL){assert.notEqual(p.get(id).value,'',id+' blank');assert.doesNotMatch(p.get(id).className,/missing-input/,id+' still red');}}
+test('DAL: every Operating and Valuation field filled from Overview data, all outputs computed',async()=>{const p=await load(DAL);noRed(p);
+ assert.equal(p.get('ol').value,'46352');assert.equal(p.get('noaasset').value,'4310');assert.equal(p.get('netdebt').value,'9802');
+ assert.equal(p.get('growth').value,'5');assert.equal(p.get('wacc').value,'10');assert.equal(p.get('terminal').value,'2');
+ assert.doesNotMatch(p.get('opResults').innerHTML,/Unavailable/);assert.doesNotMatch(p.get('dcfResults').innerHTML,/Unavailable/);
+ assert.match(p.get('automatic-valuation-status').textContent,/illustrative/);});
+test('filing fallback failed: standard-tag debt alternatives and assets − equity still fill the fields',async()=>{const v={...DAL};delete v.reportedDebtCurrent;delete v.reportedDebtNoncurrent;v.debtCurrentAlt=1605;v.debtNoncurrentAlt=12507;delete v.netInterest;v.interest=900;const p=await load(v);noRed(p);assert.equal(p.get('debt').value,'14112');assert.equal(p.get('ol').value,'46352');});
+test('no debt and no capex in SEC data: labeled fallbacks still fill',async()=>{const v={...DAL};delete v.reportedDebtCurrent;delete v.reportedDebtNoncurrent;delete v.capex;const p=await load(v);for(const id of ['ol','noaasset','fcff','growth','wacc','terminal','shares'])assert.notEqual(p.get(id).value,'',id);assert.equal(p.get('ol').value,'60464');assert.equal(p.get('fcff').value,'8342');});
+test('user edits are not overwritten',async()=>{const p=await load(DAL);p.get('wacc').value='8.5';p.get('wacc').dispatchEvent(new Event('input'));p.ctx.FinSightAutoFill.fill();assert.equal(p.get('wacc').value,'8.5');});
+test('Accruals page unchanged',async()=>{const p=await load(DAL);for(const [id,v]of Object.entries({qni:'5005',qocf:'8342',qrev:'63364',qcapex:'4499',qarb:'3224',qare:'2850'}))assert.equal(p.get(id).value,v);assert.match(p.get('qResults').innerHTML,/-3,337/);});
