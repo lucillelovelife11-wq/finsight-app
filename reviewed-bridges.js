@@ -3,7 +3,7 @@
 function bridges(h,policy={investments:false,leases:false,excludeInterestIncome:true}){
  const keys=['ni','cfo','capex','interest','interestIncome','netInterest','taxExpense','assets','equity','cash','securities','leaseCurrent','leaseNoncurrent'];const x=Object.fromEntries(keys.map(k=>[k,v(h,k)]));
  const pair=h?.current?.reportedDebtCurrent&&h?.current?.reportedDebtNoncurrent?['reportedDebtCurrent','reportedDebtNoncurrent']:['debtCurrent','debtNoncurrent'];
- x.debtCurrent=v(h,pair[0]);x.debtNoncurrent=v(h,pair[1]);x.liabilities=v(h,'liabilities');if(!f(x.liabilities)&&f(x.assets)&&f(x.equity))x.liabilities=x.assets-x.equity;
+ x.debtCurrent=v(h,pair[0]);x.debtNoncurrent=v(h,pair[1]);x.shortDebt=pair[0]==='debtCurrent'&&!h?.current?.debtCurrent?.sourceMethod?v(h,'shortDebt'):null;if(f(x.shortDebt)&&f(x.debtCurrent))x.debtCurrent+=x.shortDebt;x.liabilities=v(h,'liabilities');if(!f(x.liabilities)&&f(x.assets)&&f(x.equity))x.liabilities=x.assets-x.equity;
  const taxBase=f(x.ni)&&f(x.taxExpense)?x.ni+x.taxExpense:null;x.tax=f(taxBase)&&taxBase>0&&x.taxExpense>=0&&x.taxExpense<=taxBase?x.taxExpense/taxBase*100:null;
  const missing=[],requireValue=(key,reason)=>{if(!f(x[key]))missing.push(reason);};
  for(const key of ['debtCurrent','debtNoncurrent','cash','liabilities'])requireValue(key,key);

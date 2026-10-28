@@ -745,7 +745,7 @@ for(const id of Object.keys(operatingLabels))$(id).addEventListener('input',opca
 for(const id of Object.keys(dcfLabels))$(id).addEventListener('input',dcf);
 // Initial output is also rendered for empty inputs: a section must never silently stay blank.
 opcalc();dcf();status();
-if('serviceWorker' in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('./sw-v85.js').catch(()=>{$('v8BackendNotice').textContent+=' Offline caching could not initialize; the online page can still operate.';});
+if('serviceWorker' in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('./sw-v86.js').catch(()=>{$('v8BackendNotice').textContent+=' Offline caching could not initialize; the online page can still operate.';});
 })();
 
 </script><script data-v8-module="reviewed-bridges.js">
@@ -754,7 +754,7 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http'))navigator.
 function bridges(h,policy={investments:false,leases:false,excludeInterestIncome:true}){
  const keys=['ni','cfo','capex','interest','interestIncome','netInterest','taxExpense','assets','equity','cash','securities','leaseCurrent','leaseNoncurrent'];const x=Object.fromEntries(keys.map(k=>[k,v(h,k)]));
  const pair=h?.current?.reportedDebtCurrent&&h?.current?.reportedDebtNoncurrent?['reportedDebtCurrent','reportedDebtNoncurrent']:['debtCurrent','debtNoncurrent'];
- x.debtCurrent=v(h,pair[0]);x.debtNoncurrent=v(h,pair[1]);x.liabilities=v(h,'liabilities');if(!f(x.liabilities)&&f(x.assets)&&f(x.equity))x.liabilities=x.assets-x.equity;
+ x.debtCurrent=v(h,pair[0]);x.debtNoncurrent=v(h,pair[1]);x.shortDebt=pair[0]==='debtCurrent'&&!h?.current?.debtCurrent?.sourceMethod?v(h,'shortDebt'):null;if(f(x.shortDebt)&&f(x.debtCurrent))x.debtCurrent+=x.shortDebt;x.liabilities=v(h,'liabilities');if(!f(x.liabilities)&&f(x.assets)&&f(x.equity))x.liabilities=x.assets-x.equity;
  const taxBase=f(x.ni)&&f(x.taxExpense)?x.ni+x.taxExpense:null;x.tax=f(taxBase)&&taxBase>0&&x.taxExpense>=0&&x.taxExpense<=taxBase?x.taxExpense/taxBase*100:null;
  const missing=[],requireValue=(key,reason)=>{if(!f(x[key]))missing.push(reason);};
  for(const key of ['debtCurrent','debtNoncurrent','cash','liabilities'])requireValue(key,key);
@@ -770,7 +770,6 @@ function bridges(h,policy={investments:false,leases:false,excludeInterestIncome:
 }
 if(typeof module!=='undefined'&&module.exports)module.exports={bridges};else root.FinSightBridges={bridges};
 })(typeof globalThis!=='undefined'?globalThis:this);
-
 </script><script data-v8-module="three-page-evidence.js">
 (function(){
 'use strict';const $=id=>document.getElementById(id),E=FinSightScenario,esc=diagEsc,fmt=n=>E.finite(n)?n.toLocaleString('en-US',{maximumFractionDigits:2}):'Unavailable';let policy={investments:false,leases:false,excludeInterestIncome:true},lastSeed='';
@@ -804,7 +803,7 @@ function render(){const h=current(),b=FinSightBridges.bridges(h,policy),identity
  const seedKey=secWorkspace?JSON.stringify([secWorkspace.cik,secWorkspace.year,secWorkspace.retrievedAt,policy]):'';
  if(seedKey&&seedKey!==lastSeed&&globalThis.seedReviewedScenarioInputs){lastSeed=seedKey;globalThis.seedReviewedScenarioInputs('operating',{opLiabilities:b.opLiabilities,nonOpAssets:b.nonOpAssets,netDebt:b.netDebt,interestIncome:b.inputs.interestIncome,tax:b.inputs.tax},'Provisional automatically populated classification policy: '+JSON.stringify(policy));globalThis.seedReviewedScenarioInputs('valuation',{fcff:b.fcff,netDebt:b.netDebt},'Provisional historical bridges, not reported values.');}
  opcalc();dcf();
- const status=$('v8BuildStatus');status.textContent='FinSight V8.5 · page ready · SEC backend '+(secWorkspace?.version||'not loaded');$('v8BackendNotice').textContent=secWorkspace?.version&&secWorkspace.version!=='8.5'?'Deploy the V8.5 function too. The currently loaded backend is '+secWorkspace.version+'.':'';
+ const status=$('v8BuildStatus');status.textContent='FinSight V8.6 · page ready · SEC backend '+(secWorkspace?.version||'not loaded');$('v8BackendNotice').textContent=secWorkspace?.version&&secWorkspace.version!=='8.6'?'Deploy the V8.6 function too. The currently loaded backend is '+secWorkspace.version+'.':'';
 }
 const sync=updateContextBars;updateContextBars=function(){sync();lastSeed='';for(const id of ['ol','noaasset','fcff','netdebt','tax'])delete $(id).dataset.userEdited;policy={investments:false,leases:false,excludeInterestIncome:true};$('netInterest').value='';render();opcalc();quality();};
 for(const id of ['ol','noaasset','fcff','netdebt','tax'])$(id).addEventListener('input',()=>{$(id).dataset.userEdited='true';$(id).classList.remove('provisional-input');});
@@ -898,6 +897,6 @@ updateContextBars=function(){sync();fill();};
 globalThis.FinSightAutoFill={plan,fill};
 // Editing a highlighted value turns it into a user value.
 for(const id of [...TARGETS.operating,...TARGETS.valuation])$(id)?.addEventListener('input',()=>{$(id).classList.remove('provisional-input');$(id).dataset.origin='user';});
-const status=$('v8BuildStatus');if(status)status.textContent='FinSight V8.5 · page ready · SEC backend '+(secWorkspace?.version||'not loaded');
+const status=$('v8BuildStatus');if(status)status.textContent='FinSight V8.6 · page ready · SEC backend '+(secWorkspace?.version||'not loaded');
 })();
 </script></body></html>
