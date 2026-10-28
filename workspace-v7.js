@@ -19,9 +19,13 @@ function fmt(n){return E.finite(n)?n.toLocaleString('en-US',{maximumFractionDigi
 function latest(){return secWorkspace?.history?.at(-1);}
 function baseData(){
  const h=latest(),data={},sources={};for(const [k] of fields){data[k]=null;sources[k]='Manual evidence or assumption required';}
- for(const k of ['revenue','ni','cfo','assets','equity','ar','ca','cl']){const f=h?.current?.[k];if(E.finite(f?.value)){data[k]=f.value/1e6;sources[k]=`${f.tag} · ${f.periodEnd} · filed ${f.filed||'unknown'} · ${f.accession||'no accession'}`;}}
+ for(const k of ['revenue','ni','cfo','assets','equity','ar','ca','cl','capex','shares','interest']){const f=h?.current?.[k];if(E.finite(f?.value)){data[k]=f.value/1e6;sources[k]=`${f.tag} · ${f.periodEnd} · filed ${f.filed||'unknown'} · ${f.accession||'no accession'}`;}}
  const adj=h?.periods?.current&&h?.periods?.prior&&(Date.parse(h.periods.current)-Date.parse(h.periods.prior))/86400000;
  if(adj>=330&&adj<=400)for(const [key,tag] of [['beginAssets','assets'],['beginEquity','equity'],['beginAr','ar']]){const f=h.prior?.[tag];if(E.finite(f?.value)){data[key]=f.value/1e6;sources[key]=`${f.tag} · opening ${f.periodEnd} · ${f.accession||''}`;}}
+ const raw=k=>h?.current?.[k]?.value;
+ const tax=raw('taxExpense'),ni=raw('ni');
+ if(E.finite(tax)&&E.finite(ni)&&ni+tax>0&&tax>=0&&tax/(ni+tax)<=1){data.tax=tax/(ni+tax)*100;sources.tax='Derived effective tax proxy: tax expense / (net income + tax expense). Review discontinued and unusual items.';}
+ // FCFF and net debt are not silently inferred: expose components for review below.
  return {data,sources};
 }
 function state(id){if(!states[id]){const b=baseData();states[id]={mode:'',reported:b.data,manualBaseline:{},sources:b.sources,edit:{...b.data},bench:{},peers:[],peerStatus:'No peer data loaded.',peerList:'',peerBusy:false,benchmarkSource:'',benchmarkDate:'',horizon:5,forecastMargin:null,forecastConversion:null,bridge:false,bridgeInputs:{nonCash:null,receivables:null,inventory:null,liabilities:null},discount:{re:null,rd:null,debtWeight:null,tax:null},metric:'cfo'};}return states[id];}
@@ -125,21 +129,73 @@ async function loadPeers(id){const s=state(id);if(!secWorkspace||!latest()?.peri
 function download(id){const s=state(id),payload={version:'7.0',exportedAt:new Date().toISOString(),company:secWorkspace?.ticker||null,fiscalYear:secWorkspace?.year||null,module:id,...s};const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='FinSight_'+(secWorkspace?.ticker||'manual')+'_'+id+'_'+(s.mode||'baseline')+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
 function syncCalculators(){
  const b=baseData().data;
- const map={ni:b.ni,sales:b.revenue,ab:b.beginAssets,ae:b.assets,eb:b.beginEquity,ee:b.equity,qni:b.ni,qocf:b.cfo,qrev:b.revenue,qcapex:null,qarb:b.beginAr,qare:b.ar,oni:b.ni,oa:b.assets,orev:b.revenue,ose:b.equity,iex:null,irev:null,tax:null,ol:null,noaasset:null,debt:null,fcff:null,growth:null,wacc:null,terminal:null,netdebt:null,shares:null};
- for(const [key,value] of Object.entries(map)){const el=document.getElementById(key);if(el){el.value=value??'';el.dataset.origin=E.finite(value)?'SEC':'missing';el.placeholder=E.finite(value)?'':'Manual evidence or assumption required';}}
- // Do not run legacy calculators with missing fields: legacy Number("") would produce zero.
- for(const [ids,fn,target] of [[['ni','sales','ab','ae','eb','ee'],dupont,'dupResults'],[['qni','qocf','qrev','qcapex','qarb','qare'],quality,'qResults']]){
-  if(ids.every(k=>document.getElementById(k).value!==''))fn();else document.getElementById(target).innerHTML='<p>Company facts synchronized. Supply every missing input before calculating; no teaching defaults remain.</p>';
- }
- for(const target of ['opResults','dcfResults','dcfChart'])document.getElementById(target).innerHTML='';
- for(const target of ['dupInsight','qInsight','opInsight','dcfInsight'])document.getElementById(target).textContent='Selected-company facts are synchronized. Review all inputs and calculate again; missing fields require explicit evidence.';
+ const map={ni:b.ni,sales:b.revenue,ab:b.beginAssets,ae:b.assets,eb:b.beginEquity,ee:b.equity,qni:b.ni,qocf:b.cfo,qrev:b.revenue,qcapex:b.capex,qarb:b.beginAr,qare:b.ar,oni:b.ni,oa:b.assets,orev:b.revenue,ose:b.equity,iex:b.interest,irev:null,tax:b.tax,ol:null,noaasset:null,debt:null,fcff:null,growth:null,wacc:null,terminal:null,netdebt:null,shares:b.shares};
+ for(const [key,value] of Object.entries(map)){const el=document.getElementById(key);if(el){el.value=value??'';el.dataset.origin=E.finite(value)?'SEC':'missing';el.dataset.syncedValue=E.finite(value)?String(value):'';el.placeholder=E.finite(value)?'':'Manual evidence or assumption required';}}
+ // Recalculate complete modules and name each missing input in incomplete ones.
+ for(const [name] of configs)window[name]();
+ renderValuationEvidence();
+}
+function renderValuationEvidence(){
+ const el=document.getElementById('valuation-linked-evidence');if(!el)return;
+ const h=latest(),r=h?.current||{},v=k=>E.finite(r[k]?.value)?r[k].value/1e6:null;
+ const b=baseData().data,proxy=E.finite(b.cfo)&&E.finite(b.capex)&&E.finite(b.interest)&&E.finite(b.tax)?b.cfo-b.capex+b.interest*(1-b.tax/100):null;
+ const debt=E.finite(v('debtCurrent'))&&E.finite(v('debtNoncurrent'))&&E.finite(v('cash'))?v('debtCurrent')+v('debtNoncurrent')-v('cash'):null;
+ el.innerHTML=`<h3>${esc(calculatorCompany())} · valuation evidence</h3><p>Historical inputs come from the selected fiscal year. Growth, WACC and terminal growth are forward-looking assumptions, not reported financial facts.</p><div class="scroll-table"><table class="scenario-table"><tr><th>Historical component</th><th>Value</th><th>Source or definition</th></tr>${[['cfo','Operating cash flow'],['capex','Capital expenditure outflow'],['interest','Interest expense'],['shares','Annual weighted-average diluted shares'],['debtCurrent','Current long-term debt'],['debtNoncurrent','Noncurrent long-term debt'],['cash','Cash']].map(([k,label])=>`<tr><td>${label}</td><td>${fmt(v(k))} ${k==='shares'?'million shares':'USD m'}</td><td>${esc(r[k]?.tag||'Unavailable standard tag')} · ${esc(r[k]?.periodEnd||'period unavailable')}</td></tr>`).join('')}</table></div><p><strong>FCFF bridge candidate:</strong> ${fmt(proxy)} USD m. CFO − CapEx + interest expense × (1 − effective tax proxy). This is an approximation, not a reported FCFF fact. Review cash interest versus expense, tax treatment, non-operating items and leases before use.</p><button class="mini-action" type="button" id="use-fcff-bridge" ${E.finite(proxy)?'':'disabled'}>Use reviewed FCFF bridge for ${esc(secWorkspace?.ticker||'this example')}</button><p><strong>Limited net-debt candidate:</strong> ${fmt(debt)} USD m. Current plus noncurrent long-term debt minus cash. This excludes separately tagged short-term borrowings, finance and operating leases and other claims. It is not a complete capital-claims bridge.</p><button class="mini-action" type="button" id="use-debt-bridge" ${E.finite(debt)?'':'disabled'}>Use limited debt scope after review</button><p class="small">Unavailable components prevent bridge use; they are never assumed to be zero. Annual weighted-average diluted shares are a historical denominator proxy, not a current fully diluted share count. Review share changes since year-end.</p><button class="mini-action" type="button" id="use-demo-assumptions">Start an explicitly illustrative assumption set</button><p class="small">Optional starter: 5% growth, 10% WACC, 2% terminal growth. These are teaching assumptions, not estimates for ${esc(secWorkspace?.ticker||'an issuer')}.</p>`;
+ const set=(id,value)=>{const field=document.getElementById(id);field.value=value;field.dataset.origin='reviewed-derived';field.dispatchEvent(new Event('input',{bubbles:true}));};
+ document.getElementById('use-fcff-bridge').onclick=()=>{if(!E.finite(proxy))return;set('fcff',Number(proxy.toFixed(4)));const st=state('valuation');st.manualBaseline.fcff=st.edit.fcff=Number(proxy.toFixed(4));render('valuation');};
+ document.getElementById('use-debt-bridge').onclick=()=>{if(!E.finite(debt))return;set('netdebt',Number(debt.toFixed(4)));const st=state('valuation');st.manualBaseline.netDebt=st.edit.netDebt=Number(debt.toFixed(4));render('valuation');};
+ document.getElementById('use-demo-assumptions').onclick=()=>{set('growth',5);set('wacc',10);set('terminal',2);const st=state('valuation');for(const [k,v] of Object.entries({growth:5,wacc:10,terminal:2})){st.manualBaseline[k]=v;st.edit[k]=v;}document.getElementById('calc-feedback-dcf').textContent=calculatorCompany()+' — Illustrative assumptions applied: growth 5%, WACC 10%, terminal growth 2%. Review them, then run valuation.';render('valuation');};
 }
 const oldContext=updateContextBars;updateContextBars=function(){oldContext();const key=secWorkspace?JSON.stringify([secWorkspace.cik,secWorkspace.year,secWorkspace.retrievedAt]):'';if(key!==contextKey){contextKey=key;peerGeneration++;for(const id of ids)delete states[id];syncCalculators();for(const id of ids)render(id);diagReset();}};
 // Guard legacy calculators and provide a consistent, branching explanation.
 const configs=[['dupont',['ni','sales','ab','ae','eb','ee'],'dupInsight'],['quality',['qni','qocf','qrev','qcapex','qarb','qare'],'qInsight'],['opcalc',['oni','iex','irev','tax','oa','ol','noaasset','orev','debt','ose'],'opInsight'],['dcf',['fcff','growth','wacc','terminal','netdebt','shares'],'dcfInsight']];
-for(const [name,keys,target] of configs){const original=window[name];window[name]=function(){const node=document.getElementById(target);if(keys.some(k=>number(document.getElementById(k).value)===null)){node.innerHTML='<p class="scenario-error">Supply all inputs explicitly. Missing facts are not zero.</p>';const result={dupont:'dupResults',quality:'qResults',opcalc:'opResults',dcf:'dcfResults'}[name];document.getElementById(result).innerHTML='';if(name==='dcf')document.getElementById('dcfChart').innerHTML='';return;}original();const message=node.textContent;node.innerHTML=branches(message,['Use profitability and cash evidence together before interpreting an improvement.'],['Leverage, denominator effects, timing and classification may explain the same result.'],['Inspect the source filing and compare multiple years using matching definitions.'],['Open the company scenario panel below to test a forecast or historical adjustment.']);};}
+const calculatorLabels={ni:'Net income',sales:'Revenue / sales',ab:'Beginning total assets',ae:'Ending total assets',eb:'Beginning shareholders equity',ee:'Ending shareholders equity',qni:'Net income',qocf:'Operating cash flow',qrev:'Revenue',qcapex:'Capital expenditures',qarb:'Beginning receivables',qare:'Ending receivables',oni:'Net income',iex:'Interest expense',irev:'Interest revenue / non-operating income',tax:'Assumed tax rate',oa:'Total assets',ol:'Operating liabilities excluding debt',noaasset:'Non-operating assets',orev:'Operating revenue',debt:'Interest-bearing debt',ose:'Shareholders equity',fcff:'Base-year FCFF',growth:'Annual FCFF growth',wacc:'WACC / discount rate',terminal:'Terminal growth rate',netdebt:'Net debt',shares:'Diluted shares outstanding'};
+function calculatorCompany(){return secWorkspace?`${secWorkspace.company} (${secWorkspace.ticker}) · FY${secWorkspace.year}`:'Teaching example · no company loaded';}
+const calculatorResults={dupont:'dupResults',quality:'qResults',opcalc:'opResults',dcf:'dcfResults'};
+function clearCalculator(name){document.getElementById(calculatorResults[name]).innerHTML='';if(name==='dcf')document.getElementById('dcfChart').innerHTML='';}
+for(const [name,keys,target] of configs){
+ const original=window[name];
+ window[name]=function(interactive=false){
+  const node=document.getElementById(target),missing=keys.filter(k=>number(document.getElementById(k).value)===null),company=esc(calculatorCompany());
+  const feedback=document.getElementById('calc-feedback-'+name);
+  for(const k of keys){const input=document.getElementById(k);input.classList.toggle('missing-input',missing.includes(k));input.setAttribute('aria-invalid',missing.includes(k)?'true':'false');}
+  if(name==='quality'){
+   const get=k=>number(document.getElementById(k).value),ni=get('qni'),cfo=get('qocf'),rev=get('qrev'),capex=get('qcapex'),begin=get('qarb'),end=get('qare');
+   const m=E.metrics({ni,cfo,revenue:rev,capex});
+   const items=[['Accruals',m.accruals,'USD m'],['OCF / NI',m.cashConversion,'×'],['Accruals / Revenue',E.finite(m.accruals)&&E.finite(rev)&&rev!==0?m.accruals/rev*100:null,'%'],['Simple Free Cash Flow',m.fcf,'USD m'],['Change in Receivables',E.finite(begin)&&E.finite(end)?end-begin:null,'USD m']];
+   const count=items.filter(x=>E.finite(x[1])).length;
+   document.getElementById('qResults').innerHTML=items.map(([label,value,unit])=>`<div class="metric"><small>${esc(label)}</small><strong>${E.finite(value)?fmt(value)+' '+unit:'Unavailable'}</strong></div>`).join('');
+   const absent=missing.length?`<p>Missing inputs (${missing.length}):</p><ul>${missing.map(k=>'<li>'+esc(calculatorLabels[k])+'</li>').join('')}</ul>`:'';
+   const explanation=E.finite(m.accruals)?`${secWorkspace?.ticker||'This teaching example'}: NI minus CFO is ${fmt(m.accruals)} USD m. ${m.accruals<0?'Operating cash flow exceeds net income; investigate noncash charges and working-capital movements.':m.accruals>0?'Net income exceeds operating cash flow; investigate cash collection, noncash gains and working-capital investment.':'Net income equals operating cash flow for the supplied period.'}`:'Net income and operating cash flow are needed to assess the earnings-to-cash gap.';
+   node.innerHTML=`<p><strong>${company}</strong> · ${count} of 5 indicators updated.</p>${absent}`+branches(explanation,
+    [E.finite(cfo)&&E.finite(ni)&&cfo>=ni?'Cash generated from operations meets or exceeds reported income for the supplied period. This supports a cash-conversion discussion but does not establish earnings persistence.':'Cash-conversion support needs further evidence; inspect the available indicators.'],
+    ['Noncash charges, advance customer receipts and payment timing can change the relationship between income and CFO.'],
+    [!E.finite(capex)?'Supply capital expenditures to calculate simple free cash flow.':'Verify the CapEx scope and positive-outflow convention.',!E.finite(begin)||!E.finite(end)?'Supply both beginning and ending receivables to calculate their change.':'Reconcile receivables movements with revenue and the cash-flow reconciliation.'],
+    ['Compare the earnings-to-cash gap over multiple fiscal years using matching definitions.']);
+   feedback.innerHTML=`<strong>${company}</strong> — ${count} of 5 indicators updated. ${missing.length?'Missing: '+missing.map(k=>esc(calculatorLabels[k])).join('; ')+'. Only the affected indicators remain unavailable.':'All input fields are present.'}`;
+   if(!count&&interactive&&missing.length){document.getElementById(missing[0]).focus();}
+   return;
+  }
+  if(missing.length){
+   node.innerHTML=`<p><strong>${company}</strong></p><p class="scenario-error">Calculation incomplete. Missing inputs (${missing.length}):</p><ul>${missing.map(k=>'<li>'+esc(calculatorLabels[k])+'</li>').join('')}</ul><p class="small">Enter a sourced value or an explicit assumption for each listed field. Missing facts are not zero. A missing value is not a reported zero for ${esc(secWorkspace?.ticker||"this teaching example")}.</p>`;
+   clearCalculator(name);
+   feedback.innerHTML=`<strong>${company}</strong> — Calculation not run. Missing ${missing.length}: ${missing.map(k=>esc(calculatorLabels[k])).join('; ')}. Complete the highlighted fields, then try again.`;
+   if(interactive){const first=document.getElementById(missing[0]);first.focus();first.scrollIntoView({behavior:'smooth',block:'center'});}return;
+  }
+  original();const message=node.textContent.replace(/the company/gi,secWorkspace?.ticker||"this teaching example"),invalid=name==='dcf'&&document.getElementById('dcfResults').innerHTML==='';
+  const adjusted=secWorkspace&&keys.some(k=>{const el=document.getElementById(k);return el.dataset.origin==='SEC'&&number(el.value)!==number(el.dataset.syncedValue);});
+  const label=invalid?'Review the assumptions below; valuation was not calculated.':adjusted?'Results updated using your edited inputs. SEC source facts remain unchanged.':secWorkspace?'All required inputs are present. Results updated using the values shown.':'Results updated for the illustrative teaching inputs.';
+  feedback.innerHTML=`<strong>${company}</strong> — ${esc(label)}`;
+  node.innerHTML=`<p><strong>${company}</strong> · ${esc(label)}</p>`+branches(message,['Use profitability and cash evidence together before interpreting an improvement.'],['Leverage, denominator effects, timing and classification may explain the same result.'],['Inspect the source filing and compare multiple years using matching definitions.'],[`Open the ${secWorkspace?.ticker||'teaching'} scenario panel below to test a forecast or historical adjustment.`]);
+ };
+ for(const key of keys)document.getElementById(key).addEventListener('input',()=>{
+  const missing=keys.filter(k=>number(document.getElementById(k).value)===null);
+  if(missing.length){window[name]();return;}
+  clearCalculator(name);document.getElementById('calc-feedback-'+name).textContent=calculatorCompany()+' — Inputs changed. Recalculate to update results.';document.getElementById(target).innerHTML=`<p><strong>${esc(calculatorCompany())}</strong></p><p>Inputs changed. Click the calculate button to update results.</p>`;
+ });
+}
 // Keep partial population from resurrecting stale values.
-applySECInputs=function(id){const b=baseData().data,map=id==='ratios'?{ni:b.ni,sales:b.revenue,ab:b.beginAssets,ae:b.assets,eb:b.beginEquity,ee:b.equity}:{qni:b.ni,qocf:b.cfo,qrev:b.revenue,qcapex:null,qarb:b.beginAr,qare:b.ar};for(const [k,v] of Object.entries(map))document.getElementById(k).value=v??'';if(id==='ratios')window.dupont();else window.quality();};
+applySECInputs=function(id){const b=baseData().data,map=id==='ratios'?{ni:b.ni,sales:b.revenue,ab:b.beginAssets,ae:b.assets,eb:b.beginEquity,ee:b.equity}:{qni:b.ni,qocf:b.cfo,qrev:b.revenue,qcapex:b.capex,qarb:b.beginAr,qare:b.ar};for(const [k,v] of Object.entries(map))document.getElementById(k).value=v??'';if(id==='ratios')window.dupont();else window.quality();};
 const originalDiagRender=diagRender;diagRender=function(){originalDiagRender();const path=diagState.path,a=diagState.answers;
  const context=path==='earnings'?{good:['Cash growth and revenue growth may support earnings if timing and noncash items reconcile.'],risks:['Income growth ahead of cash or receivables growth ahead of sales can require follow-up; neither establishes manipulation.'],confirm:['Inspect receivable aging, allowances, revenue policies and cash-flow adjustments.'],next:['Compare the same signals over several fiscal years in Overview and test a timing hypothesis in the scenario panel.']}:path==='roe'?{good:['Margin or asset-turnover improvements may explain stronger shareholder returns.'],risks:['A smaller equity denominator or higher leverage can raise ROE without better operations.'],confirm:['Reconcile DuPont drivers, average equity, net borrowing cost and operating classifications.'],next:['Use ROE & DuPont and Operating ROA, then test a historical measurement hypothesis.']}:{good:['Liquid assets and recurring cash generation may support short-term obligations.'],risks:['A strong current ratio may rely on slow inventory, doubtful receivables or a seasonal year-end.'],confirm:['Review current-asset composition, debt maturities and cash commitments.'],next:['Check multiple annual periods and test alternative CFO or working-capital assumptions.']};
  const total=diagFlows[path].length;document.getElementById('diagAssessment').innerHTML+=branches(`Evidence supplied: ${diagState.step} of ${total}. Assessments remain provisional.`,context.good,context.risks,context.confirm,context.next);
@@ -147,4 +203,5 @@ const originalDiagRender=diagRender;diagRender=function(){originalDiagRender();c
 mount();
 for(const [name] of configs)window[name]();
 diagRender();
+renderValuationEvidence();
 })();

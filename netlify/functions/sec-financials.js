@@ -7,7 +7,9 @@ async function secJson(url){const old=cache.get(url);if(old&&Date.now()-old.t<36
  if(!response.ok)throw new Error('SEC request failed (HTTP '+response.status+'). SEC may limit cloud-hosted requests.');
  const data=await response.json();cache.set(url,{t:Date.now(),data});return data;}
 const TAGS={revenue:['RevenueFromContractWithCustomerExcludingAssessedTax','Revenues','SalesRevenueNet','RevenueFromContractWithCustomerIncludingAssessedTax','SalesRevenueServicesNet'],ni:['NetIncomeLoss','ProfitLoss'],cfo:['NetCashProvidedByUsedInOperatingActivities'],ar:['AccountsNotesAndOtherReceivablesNetCurrent','AccountsReceivableNetCurrent','AccountsReceivableNet'],assets:['Assets'],equity:['StockholdersEquity','StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest'],ca:['AssetsCurrent'],cl:['LiabilitiesCurrent'],cash:['CashAndCashEquivalentsAtCarryingValue','CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents'],inventory:['InventoryNet'],securities:['ShortTermInvestments','MarketableSecuritiesCurrent']};
-const INSTANT=new Set(['ar','assets','equity','ca','cl','cash','inventory','securities']);
+// Additional standard facts used by cash conversion and valuation; shares have a distinct unit.
+Object.assign(TAGS,{ppe:['PropertyPlantAndEquipmentNet'],cfi:['NetCashProvidedByUsedInInvestingActivities'],cff:['NetCashProvidedByUsedInFinancingActivities'],capex:['PaymentsToAcquirePropertyPlantAndEquipment'],shares:['WeightedAverageNumberOfDilutedSharesOutstanding'],interest:['InterestExpense','InterestAndDebtExpense'],taxExpense:['IncomeTaxExpenseBenefit'],debtCurrent:['LongTermDebtCurrent'],debtNoncurrent:['LongTermDebtNoncurrent']});
+const INSTANT=new Set(['ar','assets','equity','ca','cl','cash','inventory','securities','debtCurrent','debtNoncurrent','ppe']);
 const dayDiff=(a,b)=>(Date.parse(b)-Date.parse(a))/86400000;
 const endYear=s=>Number(String(s||'').slice(0,4));
 function annualEligible(f,year,instant){if(!['10-K','10-K/A'].includes(f.form)||f.fy!==year||f.fp!=='FY'||!f.end||!Number.isFinite(f.val))return false;
@@ -15,8 +17,8 @@ function annualEligible(f,year,instant){if(!['10-K','10-K/A'].includes(f.form)||
  if(endYear(f.end)!==year&&endYear(f.end)!==year+1)return false;
  if(!instant){if(!f.start)return false;const days=dayDiff(f.start,f.end);if(days<330||days>400)return false;}
  return true;}
-function candidates(facts,tags,year,instant){const all=[];for(let priority=0;priority<tags.length;priority++){const tag=tags[priority];const entries=facts?.facts?.['us-gaap']?.[tag]?.units?.USD||[];
- for(const f of entries)if(annualEligible(f,year,instant))all.push({value:f.val,tag,year,accession:f.accn||null,filed:f.filed||null,periodStart:f.start||null,periodEnd:f.end,form:f.form,priority});}
+function candidates(facts,tags,year,instant){const all=[];for(let priority=0;priority<tags.length;priority++){const tag=tags[priority];const unit=tag==='WeightedAverageNumberOfDilutedSharesOutstanding'?'shares':'USD';const entries=facts?.facts?.['us-gaap']?.[tag]?.units?.[unit]||[];
+ for(const f of entries)if(annualEligible(f,year,instant))all.push({value:f.val,tag,year,accession:f.accn||null,filed:f.filed||null,periodStart:f.start||null,periodEnd:f.end,form:f.form,unit,priority});}
  return all;}
 function dominantPeriod(facts,year){ // Find the year-end used by the most standard balance-sheet/annual flow facts.
  const counts=new Map();for(const [k,tags] of Object.entries(TAGS)){const seen=new Set();for(const f of candidates(facts,tags,year,INSTANT.has(k))){if(!seen.has(f.periodEnd)){counts.set(f.periodEnd,(counts.get(f.periodEnd)||0)+1);seen.add(f.periodEnd);}}}
