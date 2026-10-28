@@ -1,0 +1,11 @@
+{
+  "name": "finsight-sec-workspace",
+  "version": "7.0.0",
+  "private": true,
+  "scripts": {
+    "test": "node --test tests/scenario-engine.test.cjs tests/workbench.test.cjs"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
