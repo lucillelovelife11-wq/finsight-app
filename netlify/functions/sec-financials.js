@@ -56,7 +56,7 @@ exports.handler=async event=>{try{if(event.httpMethod!=='GET')return{statusCode:
  const cik=String(hit.cik_str).padStart(10,'0'),facts=await secJson(`https://data.sec.gov/api/xbrl/companyfacts/CIK${cik}.json`);
  const history=Array.from({length:years},(_,i)=>year-years+1+i).map(y=>({year:y,...summarize(facts,y)}));
  const filingFallback=await filingEvidence.fallback(history,{cik,year},secJson,secText),summary=history.at(-1);
- return{statusCode:200,headers:{'Content-Type':'application/json','Cache-Control':'public, max-age=600'},body:JSON.stringify({version:'8.1',company:hit.title,ticker:hit.ticker,cik,year,history,filingFallback,secUrl:`https://www.sec.gov/edgar/browse/?CIK=${cik}`,retrievedAt:new Date().toISOString(),...summary})};
+ return{statusCode:200,headers:{'Content-Type':'application/json','Cache-Control':'public, max-age=600'},body:JSON.stringify({version:'8.2',company:hit.title,ticker:hit.ticker,cik,year,history,filingFallback,secUrl:`https://www.sec.gov/edgar/browse/?CIK=${cik}`,retrievedAt:new Date().toISOString(),...summary})};
  }catch(e){return{statusCode:503,headers:{'Content-Type':'application/json'},body:JSON.stringify({error:e.message||'SEC service unavailable'})}}};
 // Exposed only for local regression tests; no network calls are made by these helpers.
 exports._test={annualEligible,dominantPeriod,selectFact,summarize};

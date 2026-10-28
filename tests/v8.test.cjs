@@ -9,9 +9,9 @@ test('the actual self-contained V8 page initializes every script and all three t
  p.get('fcff').value='100';p.get('growth').value='5';p.get('wacc').value='10';p.get('terminal').value='2';p.run('dcf()');assert.doesNotMatch(p.get('dcfResults').innerHTML,/<small>Enterprise value<\/small><strong>Unavailable/);assert.match(p.get('dcfResults').innerHTML,/Needs:.*reviewed net debt/s);
 });
 test('self-contained distribution has no external application JS or CSS dependencies',()=>{
- const fs=require('node:fs'),path=require('node:path'),s=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');assert.doesNotMatch(s,/<script src=/);assert.doesNotMatch(s,/rel="stylesheet"/);assert.match(s,/sw-v81.js/);assert.match(s,/v8-runtime.js/);
+ const fs=require('node:fs'),path=require('node:path'),s=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');assert.doesNotMatch(s,/<script src=/);assert.doesNotMatch(s,/rel="stylesheet"/);assert.match(s,/sw-v82.js/);assert.match(s,/v8-runtime.js/);
 });
 test('old backend is explicitly identified instead of implying all new fields were fetched',async()=>{
- const f=fixture();f.version='6.0';const p=harness(f);assert.deepEqual(p.errors,[]);p.get('globalCompany').value='TEST';p.get('globalYear').value='2025';await p.get('workspaceLoad').click();assert.match(p.get('v8BackendNotice').textContent,/Deploy the V8(?:\.1)? function/);assert.match(p.get('qResults').innerHTML,/-3,337/);
+ const f=fixture();f.version='6.0';const p=harness(f);assert.deepEqual(p.errors,[]);p.get('globalCompany').value='TEST';p.get('globalYear').value='2025';await p.get('workspaceLoad').click();assert.match(p.get('v8BackendNotice').textContent,/Deploy the V8(?:\.[12])? function/);assert.match(p.get('qResults').innerHTML,/-3,337/);
  p.get('netdebt').value='20';p.get('shares').value='10';p.get('fcff').value='100';p.get('growth').value='5';p.get('wacc').value='10';p.get('terminal').value='2';p.run('dcf()');assert.doesNotMatch(p.get('dcfResults').innerHTML,/Unavailable/);p.run("secWorkspace={...secWorkspace,company:'Next fixture',ticker:'NEXT',cik:'1',retrievedAt:'next'};updateContextBars()");assert.equal(p.get('fcff').value,'');assert.match(p.get('dcfResults').innerHTML,/Unavailable/);
 });

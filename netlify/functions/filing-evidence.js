@@ -6,11 +6,11 @@ function attrs(s){const out={};for(const m of s.matchAll(/([\w:.-]+)\s*=\s*["'](
 function element(s,tag){return s.match(new RegExp('<(?:[\\w.-]+:)?'+tag+'\\b[^>]*>([\\s\\S]*?)<\\/(?:[\\w.-]+:)?'+tag+'>','i'))?.[1]||null;}
 const rules=[
  ['ar',/^(?:accounts )?receivables(?:,? net)?(?: of.*)?$/i,true],
- ['interest',/^interest expense$/i,false],['interestIncome',/^interest income$/i,false],
- ['capex',/^capital expenditures(?:,? net of.*)?$/i,false],
- ['reportedDebtCurrent',/^current maturities of long.term debt(?:,? finance leases)?(?:,? and other financial liabilities)?$/i,true],
- ['reportedDebtNoncurrent',/^long.term debt(?:,? finance leases)?(?:,? and other financial liabilities)?(?:,? net)?$/i,true],
- ['leaseCurrent',/^current maturities of operating leases$/i,true],['leaseNoncurrent',/^long.term obligations under operating leases$/i,true],
+ ['netInterest',/^interest expense,? net$/i,false],['interest',/^interest expense$/i,false],['interestIncome',/^interest income$/i,false],
+ ['capex',/^capital expenditures(?:,? net of.*)?$/i,false],['capexFlight',/^flight equipment,? including advance payments$/i,false],['capexGround',/^ground property and equipment,? including technology$/i,false],
+ ['reportedDebtCurrent',/^current maturities of (?:long.term )?debt(?:(?:,?| and) finance leases)?(?:,? and other financial liabilities)?$/i,true],
+ ['reportedDebtNoncurrent',/^(?:long.term )?debt(?:(?:,?| and) finance leases)?(?:,? and other financial liabilities)?(?:,? net)?$/i,true],
+ ['leaseCurrent',/^current maturities of operating leases$/i,true],['leaseNoncurrent',/^(?:long.term obligations under|noncurrent) operating leases$/i,true],
  ['operatingIncome',/^operating income(?: \(loss\))?$/i,false],['taxExpense',/^income tax expense(?: \(benefit\))?$/i,false],
  ['cash',/^cash and cash equivalents$/i,true],['securities',/^short.term investments$/i,true]
 ];
@@ -25,8 +25,8 @@ function parseFiling(html,meta){
  for(const m of html.matchAll(/<(?:[\w.-]+:)?unit\b([^>]*)>([\s\S]*?)<\/(?:[\w.-]+:)?unit>/gi))units.set(attrs(m[1]).id,plain(m[2]));
  const found={};
  for(const row of html.matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/gi)){
-  const body=row[1],first=body.match(/<td\b[^>]*>([\s\S]*?)<\/td>/i)?.[1];if(!first)continue;
-  const label=plain(first).replace(/[:*]+$/,'').trim(),rule=rules.find(r=>r[1].test(label));if(!rule)continue;
+  const body=row[1],first=body.match(/<td\b[^>]*>([\s\S]*?)<\/td>/i)?.[1];if(first===undefined)continue;
+  const label=plain(body.split(/<ix:nonFraction/i)[0]).replace(/[\s$(:*]+$/,'').trim(),rule=rules.find(r=>r[1].test(label));if(!rule)continue;
   for(const f of body.matchAll(/<ix:nonFraction\b([^>]*)>([\s\S]*?)<\/ix:nonFraction>/gi)){
    const a=attrs(f[1]),c=contexts.get(a.contextref);if(!c||c.instant!==rule[2]||!/^\d{4}-\d{2}-\d{2}$/.test(c.end))continue;
    if(!c.instant){const days=(Date.parse(c.end)-Date.parse(c.start))/86400000;if(days<330||days>400)continue;}
@@ -34,13 +34,17 @@ function parseFiling(html,meta){
    const txt=plain(f[2]).replace(/[,$\s()]/g,''),scale=Number(a.scale||0);if(!txt||!/^[-+]?\d*\.?\d+$/.test(txt)||!Number.isInteger(scale)||Math.abs(scale)>12)continue;
    let value=Number(txt)*10**scale;if(a.sign==='-')value=-Math.abs(value);if(!finite(value))continue;
    // CapEx is exposed as a positive outflow input, even when rendered as a deduction.
-   const reportedSignedValue=value;if(rule[0]==='capex'||rule[0]==='interest')value=Math.abs(value);
+   const reportedSignedValue=value;
+   if(rule[0]==='netInterest'&&String(a.name).split(':').at(-1)==='InterestIncomeExpenseNonoperatingNet')value=-value;
+   else if(['capex','capexFlight','capexGround','interest','netInterest'].includes(rule[0]))value=Math.abs(value);
    const key=c.end+':'+rule[0],record={value,reportedSignedValue,tag:a.name,periodStart:c.start||null,periodEnd:c.end,accession:meta.accession,filed:meta.filed,form:'10-K',unit:'USD',sourceMethod:'filing-inline-xbrl',sourceUrl:meta.url,definition:label};
    if(found[key]&&found[key].value!==value){found[key].conflict=true;continue;}
    if(!found[key])found[key]=record;
   }
  }
- for(const k of Object.keys(found))if(found[k].conflict)delete found[k];return found;
+ for(const k of Object.keys(found))if(found[k].conflict)delete found[k];
+ for(const end of [...new Set(Object.values(found).map(f=>f.periodEnd))]){const a=found[end+':capexFlight'],b=found[end+':capexGround'];if(!found[end+':capex']&&a&&b)found[end+':capex']={...a,value:a.value+b.value,tag:a.tag+' + '+b.tag,sourceMethod:'derived-filing-components',definition:'Flight equipment additions plus ground property/equipment additions',components:[a,b]};}
+ return found;
 }
 function enrich(history,records){for(const h of history){for(const [key,end]of [['current',h.periods.current],['prior',h.periods.prior],['prior2',h.periods.prior2]]){
  const out=h[key]||{};for(const [id,r]of Object.entries(records))if(id.startsWith(end+':')){const name=id.slice(end.length+1);if(!out[name])out[name]=r;}
