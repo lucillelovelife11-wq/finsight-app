@@ -1,0 +1,5 @@
+{
+  "version": "8.0",
+  "pageSha256": "d41291dbe84bb3560dc3cb540081ed4bb7bc20458efbe5ad2d28ad3fe79800bd",
+  "distribution": "Self-contained index.html plus Netlify function and PWA assets"
+}

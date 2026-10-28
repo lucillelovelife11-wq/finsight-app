@@ -1,9 +1,9 @@
 {
   "name": "finsight-sec-workspace",
-  "version": "7.7.0",
+  "version": "8.0.0",
   "private": true,
   "scripts": {
-    "test": "node --test tests/scenario-engine.test.cjs tests/workbench.test.cjs tests/sec-valuation.test.cjs tests/transactions.test.cjs tests/accounting-cases.test.cjs tests/diagnosis.test.cjs"
+    "test": "node --test tests/scenario-engine.test.cjs tests/workbench.test.cjs tests/sec-valuation.test.cjs tests/transactions.test.cjs tests/accounting-cases.test.cjs tests/diagnosis.test.cjs tests/v8.test.cjs"
   },
   "engines": {
     "node": ">=18"
